@@ -32,11 +32,12 @@ migration = Migration {
             , actions = act
             }
 
+-- The following uses ".", so it should be read from bottom to top
 act :: IO ()
 act = xformPrimaryJSON $ policy
   where
-    policy = jsSet "/usb-rules/9900/description"     (jsBoxString "Deny keyboard passthrough to all VMs") .
-             jsSet "/usb-rules/9900/command"         (jsBoxString "deny") .
-             jsSet "/usb-rules/9900/device/keyboard" (jsBoxString "1") .
+    policy = jsSet "/usb-rules/9999/command"         (jsBoxString "allow") .
              jsSet "/usb-rules/9999/description"     (jsBoxString "Allow everything else") .
-             jsSet "/usb-rules/9999/command"         (jsBoxString "allow")
+             jsSet "/usb-rules/9900/device/keyboard" (jsBoxString "1") .
+             jsSet "/usb-rules/9900/command"         (jsBoxString "deny") .
+             jsSet "/usb-rules/9900/description"     (jsBoxString "Deny keyboard passthrough to all VMs")
