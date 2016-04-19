@@ -26,7 +26,7 @@
     "nx": "true",
     "v4v": "true",
     "sound": "ac97",
-    "memory": "1024",
+    "memory": "2048",
     "display": "none",
     "boot": "cd",
     "flask-label": "system_u:system_r:hvm_guest_t",

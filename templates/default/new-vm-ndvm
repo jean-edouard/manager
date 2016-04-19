@@ -41,7 +41,7 @@
     "apic": "true",
     "nx": "true",
     "v4v": "true",
-    "memory": "176",
+    "memory": "192",
     "display": "none",
     "cmdline": "root=\/dev\/xvda1 iommu=soft xencons=hvc0",
     "kernel-extract": "\/boot\/vmlinuz",
