@@ -252,8 +252,7 @@ vmEventProcessor
 whenRunning xm = do
     maybeUpdateV4VHosts
     uuid <- vmUuid
-    usb <- uuidRpc getVmUsbEnabled
-    when usb $ whenDomainID_ uuid $ \domid -> usbUp (fromIntegral domid)
+    whenDomainID_ uuid $ \domid -> usbUp (fromIntegral domid)
 
 whenShutdown xm reason = do
     uuid <- vmUuid
