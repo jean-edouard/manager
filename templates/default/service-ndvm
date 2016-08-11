@@ -4,7 +4,7 @@
   "name": "Network",
   "slot": "-1",
   "hidden": "true",
-  "start_on_boot": "true",
+  "start_on_boot": "false",
   "start_on_boot_priority": "10",
   "provides-network-backend": "true",
   "provides-default-network-backend": "true",
@@ -51,11 +51,11 @@
     "flask-label": "system_u:system_r:ndvm_t",
     "pci": {
       "0": {
-        "class": "0x0200",
+        "class": "0x0201",
         "force-slot": "false"
       },
       "1": {
-        "class": "0x0280",
+        "class": "0x0281",
         "force-slot": "false"
       }
     },

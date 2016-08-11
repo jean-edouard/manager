@@ -218,7 +218,6 @@ unapplyActiveRule r = let cmd = "viptables -D " ++ viptablesParams r in
 startToDenyAll :: IO ()
 startToDenyAll = do
     safeSpawnShell "viptables -F"
-    safeSpawnShell "viptables -A -j REJECT"
     return ()
 
 reworkRules :: IO a -> IO a
@@ -229,7 +228,6 @@ reworkRules action = do
     safeSpawnShell "viptables -D -j ACCEPT"
     -- allow dom0 -> dom0 (bl**dy v4vproxy)
     safeSpawnShell "viptables -A --dom-in 0 --dom-out 0 -j ACCEPT"
-    safeSpawnShell "viptables -A -j REJECT"
     return r
 
 ruleToString :: Rule -> String
