@@ -10,7 +10,7 @@
   "shutdown-priority": "-5",
   "start-from-suspend-image": "",
   "hidden-in-ui": "true",
-  "measured": "true",
+  "measured": "false",
   "icbinn-path": "\/config\/certs",
   "v4v-firewall-rules": {
     "0": "myself -> 0:80",
@@ -66,7 +66,7 @@
     "hvm": "false",
     "apic": "true",
     "nx": "true",
-    "vkbd" : "true",
+    "vkb" : "true",
     "vfb" : "true",
     "v4v" : "true",
     "memory-min": "192",

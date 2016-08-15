@@ -31,7 +31,6 @@ import Vm.Types
 import Vm.Queries
 import Vm.Config
 import XenMgr.Config
-import XenMgr.Connect.Xenvm
 import Tools.Log
 
 -- Write a XENVM configuration file for VM
@@ -41,9 +40,9 @@ writeXenvmConfig cfg = do
   let stringconfig = stringifyXenvmConfig config
 
   liftIO $ retry 10 (writeFile xenvmConfigPath stringconfig)
-  info $ "written xenvm config for " ++ show (vmcfgUuid cfg)
+  info $ "written xl config for " ++ show (vmcfgUuid cfg)
   where
     xenvmConfigDir  = "/tmp"
-    xenvmConfigPath = joinPath [xenvmConfigDir, "xenmgr-xenvm-" ++ (show $ vmcfgUuid cfg)]
+    xenvmConfigPath = joinPath [xenvmConfigDir, "xenmgr-xl-" ++ (show $ vmcfgUuid cfg)]
     retry 0 _ = return ()
     retry n f = f `E.catch` \(err::IOError) -> threadDelay (10^5) >> retry (n-1) f

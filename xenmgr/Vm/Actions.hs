@@ -30,9 +30,7 @@ module Vm.Actions
           , resumeFromSleep
           , hibernateVm
           , shutdownVm
-          , shutdownVmIfSafe
           , forceShutdownVm
-          , forceShutdownVmIfSafe
           , pauseVm
           , unpauseVm
           , switchVm
@@ -103,7 +101,7 @@ module Vm.Actions
           , setVmDownloadProgress
           , setVmReady
           , setVmProvidesDefaultNetworkBackend
-          , setVmVkbd
+          , setVmVkb
           , setVmVfb
           , setVmV4V
           , setVmRestrictDisplayDepth
@@ -124,6 +122,7 @@ import Data.List
 import Data.Maybe
 import Data.Bits
 import Data.String
+import Data.Int
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Map as M
 import qualified Data.Set as Set
@@ -176,10 +175,9 @@ import {-# SOURCE #-} Vm.React
 import qualified Vm.V4VFirewall as Firewall
 import Vm.Balloon
 import XenMgr.Rpc
-import qualified XenMgr.Connect.Xenvm as Xenvm
+import qualified XenMgr.Connect.Xl as Xl
 import qualified XenMgr.Connect.GuestRpcAgent as RpcAgent
 import XenMgr.Connect.NetworkDaemon
-import XenMgr.Connect.Xenvm ( resumeFromSleep, resumeFromFile, suspendToFile )
 import XenMgr.Connect.InputDaemon
 import XenMgr.Config
 import XenMgr.Errors
@@ -237,7 +235,7 @@ startServiceVm uuid = xmContext >>= \xm -> liftRpc $
                   info $ "service vm " ++ show uuid ++ " requested a memory image snapshot"
                   -- take a vm snapshot
                   info $ "taking memory image snapshot for service vm " ++ show uuid
-                  suspendToFile uuid file
+                  liftIO $ Xl.suspendToFile uuid file
                   info $ "DONE taking memory image snapshot for service vm " ++ show uuid
                   liftIO $ xsWrite (vmSuspendImageStatePath uuid) "snapshot-done"
                   -- double start, TODO: maybe wont be necessary
@@ -448,7 +446,6 @@ removeVm uuid =
        -- Need to quit xenvm
        -- FIXME: cleanly stop monitoring events
        removeDefaultEvents uuid	--cleanly...stop monitoring events
-       Xenvm.quitXenvm uuid
        notifyVmDeleted uuid
   where
     removeVhds  = Data.Foldable.mapM_ (removeDiskFiles uuid) =<< getDisks uuid
@@ -497,60 +494,61 @@ startVmInternal uuid = do
     liftRpc $ maybePtGpuFuncs uuid
     config <- prepareAndCheckConfig uuid
     case config of
-      Just c -> info ("done checks for VM " ++ show uuid) >> bootVm c
-      Nothing-> return ()
-  where
+        Just c -> info ("done checks for VM " ++ show uuid) >> bootVm c
+        --Just c -> info ("done checks for VM " ++ show uuid) >> Xl.start uuid
+        Nothing-> return ()
+    where
 
-  --Based on bdf get all functions on that device bus:device.function
-  --and pass them through to vm in case of bus level reset.
-    maybePtGpuFuncs uuid = do
-      ok <- isGpuPt uuid
-      if ok
-        then do
-          gfxbdf <- getVmGpu uuid
-          devices <- liftIO pciGetDevices
-          let devMatches = filter (bdFilter (take 7 gfxbdf) gfxbdf) devices in
-              mapM_ (add_pt_rule_bdf uuid) devMatches
-        else return ()
+      --Based on bdf get all functions on that device bus:device.function
+      --and pass them through to vm in case of bus level reset.
+        maybePtGpuFuncs uuid = do
+          ok <- isGpuPt uuid
+          if ok
+            then do
+              gfxbdf <- getVmGpu uuid
+              devices <- liftIO pciGetDevices
+              let devMatches = filter (bdFilter (take 7 gfxbdf) gfxbdf) devices in
+                  mapM_ (add_pt_rule_bdf uuid) devMatches
+            else return ()
 
-    --Filter function to match on domain:bus and also filter out the video function
-    bdFilter match bdf d = (isInfixOf match (show (devAddr d))) && (bdf /= (show (devAddr d))) 
+        --Filter function to match on domain:bus and also filter out the video function
+        bdFilter match bdf d = (isInfixOf match (show (devAddr d))) && (bdf /= (show (devAddr d))) 
 
-    --Check if vm has a bdf in gpu
-    isGpuPt uuid = do
-        gpu <- getVmGpu uuid
-        return (gpu /= "" && gpu /= "hdx")
+        --Check if vm has a bdf in gpu
+        isGpuPt uuid = do
+            gpu <- getVmGpu uuid
+            return (gpu /= "" && gpu /= "hdx")
 
-    prepareAndCheckConfig uuid = do
-      ok <- stage1 -- early tests / dependency startup
-      if (not ok)
-         then return Nothing
-         else do
-           -- this (config gather) needs to be done after dependency startup to get correct
-           -- backend domids
-           config <- liftRpc $ getVmConfig uuid True
-           info $ "gathered config for VM " ++ show uuid
-           ok <- stage2 config
-           if ok then return (Just config) else return Nothing
+        prepareAndCheckConfig uuid = do
+          ok <- stage1 -- early tests / dependency startup
+          if (not ok)
+             then return Nothing
+             else do
+               -- this (config gather) needs to be done after dependency startup to get correct
+               -- backend domids
+               config <- liftRpc $ getVmConfig uuid True
+               info $ "gathered config for VM " ++ show uuid
+               ok <- stage2 config
+               if ok then return (Just config) else return Nothing
 
-    stage1
-      = startupCheckVmState uuid
-          `followby` startupCheckHostStates uuid
-          `followby` startupDependencies uuid
-          `followby` startupExtractKernel uuid
-          `followby` startupMeasureVm uuid
-    stage2 config
-      = startupCheckNics config
-          `followby` startupCheckGraphicsConstraints config
-          `followby` startupCheckIntelConstraints config
-          `followby` startupCheckAMTConstraints config
-          `followby` startupCheckPCI config
-          `followby` startupCheckOemFeatures config
-          `followby` startupCheckSyncXTComfortable uuid
+        stage1
+          = startupCheckVmState uuid
+              `followby` startupCheckHostStates uuid
+              `followby` startupDependencies uuid
+              `followby` startupExtractKernel uuid
+              `followby` startupMeasureVm uuid
+        stage2 config
+          = startupCheckNics config
+              `followby` startupCheckGraphicsConstraints config
+              `followby` startupCheckIntelConstraints config
+              `followby` startupCheckAMTConstraints config
+              `followby` startupCheckPCI config
+              `followby` startupCheckOemFeatures config
+              `followby` startupCheckSyncXTComfortable uuid
 
-    followby f g =
-      do ok <- f
-         if ok then g else return False
+        followby f g =
+          do ok <- f
+             if ok then g else return False
 
 startupCheckVmState :: Uuid -> XM Bool
 startupCheckVmState uuid
@@ -707,8 +705,7 @@ startupCheckSyncXTComfortable uuid
 
 withPreCreationState :: Uuid -> XM a -> XM a
 withPreCreationState uuid f =
-  do s <- getVmInternalState uuid
-     when (s /= PreCreate) $ xmRunVm uuid $ vmEvalEvent (VmStateChange PreCreate)
+  do
      f `catchError` (\e -> do
                                s <- getVmInternalState uuid
                                -- have to mop up here if something went wrong in pre-create state
@@ -716,21 +713,34 @@ withPreCreationState uuid f =
                                when (s == PreCreate) $ do
                                  xmRunVm uuid $ vmEvalEvent (VmStateChange Shutdown)
                                throwError e)
+--Write the xenstore nodes for the backend and the frontend for the v4v device
+--set states to Unknown and Initializing respectively, like xenvm used to do 
+xsp domid = "/local/domain/" ++ show domid
+xsp_dom0  = "/local/domain/0"
+v4vBack domid = "/backend/v4v/" ++ show domid ++ "/0"
+vfbBack domid = "/backend/vfb/" ++ show domid ++ "/0"
+
+setupV4VDevice uuid =
+  whenDomainID_ uuid $ \domid -> liftIO $ do
+    xsWrite (xsp domid ++ "/device/v4v/0/backend") ("/local/domain/0/backend/v4v/" ++ show domid ++ "/0")
+    xsWrite (xsp domid ++ "/device/v4v/0/backend-id") "0"
+    xsWrite (xsp domid ++ "/device/v4v/0/state") "1"
+
+    xsWrite (xsp_dom0 ++ (v4vBack domid) ++ "/frontend") (xsp domid ++ "/device/v4v/0")
+    xsWrite (xsp_dom0 ++ (v4vBack domid) ++ "/frontend-id") $ show domid
+    xsWrite (xsp_dom0 ++ (v4vBack domid) ++ "/state") "0"
      
 bootVm :: VmConfig -> XM ()
 bootVm config
-  = do -- fire xenvm up if necessary, send configuration to xenvm
+  = do 
        monitor <- vm_monitor <$> xmRunVm uuid vmContext
-       liftRpc $ do
-         whenM (not <$> ensureXenvm monitor config) $ do -- starts xenvm + writes config if not up
-           -- xenvm was already up, need to send it new config
-           updateXVConfig config
+       liftRpc $ updateXVConfig config
 
        withPreCreationState uuid create
     where
       uuid = vmcfgUuid config
       updateXVConfig :: VmConfig -> Rpc ()
-      updateXVConfig c = writeXenvmConfig c >> Xenvm.readConfig uuid
+      updateXVConfig c = writeXenvmConfig c
       create = do
        -- create environment iso
        whenM (getVmOvfTransportIso uuid) . liftIO $ do
@@ -741,8 +751,9 @@ bootVm config
        bootstrap <- xmWithBalloonLock $ do
          liftRpc $ do
            balanced <-
-             do ok <- balanceToBoot uuid
-                if ok
+             --do ok <- balanceToBoot uuid
+             do
+                if True
                    then return True
                    else do
                      -- another attempt with minimal memory
@@ -758,6 +769,9 @@ bootVm config
 
          -- run custom pre boot action
          liftRpc $ runEventScript HardFail uuid getVmRunPreBoot [uuidStr uuid]
+         -- bind any passthrough devices to pciback if possible
+         liftRpc $ bindVmPcis uuid
+
          -- fork xenvm vm startup in the background
          bootstrap <- future $ liftRpc $ do
            suspend_file <- getVmStartFromSuspendImage uuid
@@ -766,17 +780,16 @@ bootVm config
                   then return False
                   else liftIO (doesFileExist suspend_file)
            if not exists
-                then do Xenvm.startPaused uuid
+                then do liftIO $ Xl.start uuid
                 else do liftIO $ xsWrite (vmSuspendImageStatePath uuid) "resume"
-                        resumeFromFile uuid suspend_file False True
-         return bootstrap
+                        liftIO $ Xl.resumeFromFile uuid suspend_file False True
+         return bootstrap 
        -- fork vm creation phase handling in the background
        phases <- future handleCreationPhases
        -- ensure bootstrap and phase handling synchronously terminates before returning (and errors get propagated)
        force bootstrap
        force phases
 
-      xsp domid = "/local/domain/" ++ show domid
       writable domid path = do
         xsWrite path ""
         xsSetPermissions path [ Permission 0 []
@@ -793,10 +806,27 @@ bootVm config
           -- read drives media state
           liftIO $
             mapM_ updateCdDeviceMediaStatusKey =<< liftIO getHostBSGDevices
+     
+      setupBiosStrings uuid =
+          whenDomainID_ uuid $ \domid -> do
+            liftIO $ xsWrite (xsp domid ++ "/bios-strings/xenvendor-manufacturer") "OpenXT"
+            liftIO $ xsWrite (xsp domid ++ "/bios-strings/xenvendor-product") "OpenXT 5.0.0"
+            liftIO $ xsWrite (xsp domid ++ "/bios-strings/xenvendor-seamless-hint") "0"
+      
+      surfmanDbusCalls uuid = 
+          whenDomainID_ uuid $ \domid -> do 
+            rpcCallOnce (Xl.xlSurfmanDbus uuid "set_pv_display" [toVariant $ (read (show domid) :: Int32), toVariant $ ""])
+            rpcCallOnce (Xl.xlSurfmanDbus uuid "set_visible" [toVariant $ (read (show domid) :: Int32), toVariant $ (0 :: Int32), toVariant $ False])
+            return ()
+
+      inputDbusCalls uuid = 
+          whenDomainID_ uuid $ \domid -> do
+            rpcCallOnce (Xl.xlInputDbus uuid "attach_vkbd" [toVariant $ (read (show domid):: Int32) ])
+            return ()
 
       handleCreationPhases :: XM ()
       handleCreationPhases = do
-        waitForVmInternalState uuid CreatingDevices 30
+        waitForVmInternalState uuid Created 30
          
         -- BEFORE DEVICE MODEL
         info $ "pre-dm setup for " ++ show uuid
@@ -804,6 +834,11 @@ bootVm config
           twiddlePermissions uuid
           exportVmSwitcherInfo uuid
           setupCDDrives uuid
+          --No longer passing v4v in the config, keep in db.
+          v4v_enabled <- getVmV4V uuid
+          when v4v_enabled $ setupV4VDevice uuid
+
+          setupBiosStrings uuid
           -- some little network plumbing
           gives_network <- getVmProvidesNetworkBackend uuid
           when gives_network $ whenDomainID_ uuid $ \domid -> do
@@ -815,6 +850,11 @@ bootVm config
           stubdom_memory <- getVmStubdomMemory uuid
           stubdom_cmdline <- getVmStubdomCmdline uuid
 
+          vfb_enabled <- getVmVfb uuid
+          when vfb_enabled $ surfmanDbusCalls uuid
+          
+          vkb_enabled <- getVmVkb uuid
+          when vkb_enabled $ inputDbusCalls uuid
           applyVmFirewallRules uuid
           -- notify that v4v rules have been set up, so xenvm can unpause stubdom
           whenDomainID_ uuid $ \domid -> liftIO $
@@ -831,7 +871,7 @@ bootVm config
           -- assign sticky cd drives
           mapM_ (\d -> assignCdDevice d uuid) =<< getVmStickyCdDevices uuid
           info $ "unpause " ++ show uuid
-          Xenvm.unpause uuid
+          liftIO $ Xl.unpause uuid
         -- wait for bootup services to complete if using sentinel
         maybe (return()) (\p -> liftIO 
                             . void 
@@ -909,7 +949,7 @@ disconnectFrontVifs back_uuid =
       disconnect (front_uuid, dev) = do
           let nid@(XbDeviceID nic_id) = dmfID dev
           info $ "disconnecting nic uuid=" ++ show front_uuid ++ " id=" ++ show nic_id
-          Xenvm.connectVif front_uuid nid False
+          liftIO $ Xl.connectVif front_uuid nid False
 
 
 -- Reboot a VM
@@ -919,14 +959,12 @@ rebootVm uuid = do
     -- Write XENVM configuration file
     writeXenvmConfig =<< getVmConfig uuid True
 
-    -- Ask xenvm kindly to reload it
-    Xenvm.readConfig uuid
-
     -- Request start from XENVM
-    use_agent <- RpcAgent.guestAgentRunning uuid
-    if use_agent
-       then RpcAgent.reboot uuid
-       else Xenvm.reboot uuid
+    --use_agent <- RpcAgent.guestAgentRunning uuid
+    --if use_agent
+    --   then RpcAgent.reboot uuid
+    --   else liftIO $ Xl.reboot uuid
+    liftIO $ Xl.reboot uuid
 
 shutdownVm :: Uuid -> Rpc ()
 shutdownVm uuid = do
@@ -940,35 +978,22 @@ shutdownVm uuid = do
       info $ "resuming " ++ show uuid ++ " from S3 DONE."
     if use_agent
        then RpcAgent.shutdown uuid
-       else Xenvm.shutdown uuid
-
-canIssueVmShutdown :: Vm Bool
-canIssueVmShutdown = liftRpc . Xenvm.isXenvmUp =<< vmUuid
-
-shutdownVmIfSafe :: Vm ()
-shutdownVmIfSafe = safe =<< canIssueVmShutdown where
-    safe False = vmUuid >>= \uuid -> warn $ "ignoring request to shutdown VM " ++ show uuid
-    safe _     = liftRpc . shutdownVm =<< vmUuid
+       else liftIO $ Xl.shutdown uuid
 
 forceShutdownVm :: Uuid -> Rpc ()
 forceShutdownVm uuid = do
     info $ "forcibly shutting down VM " ++ show uuid
-    Xenvm.destroy uuid
-
-forceShutdownVmIfSafe :: Vm ()
-forceShutdownVmIfSafe = safe =<< canIssueVmShutdown where
-    safe False = vmUuid >>= \uuid -> warn $ "ignoring request to forcibly shutdown VM " ++ show uuid
-    safe _     = liftRpc . forceShutdownVm =<< vmUuid
+    liftIO $ Xl.destroy uuid
 
 pauseVm :: Uuid -> Rpc ()
 pauseVm uuid = do
   info $ "pausing VM " ++ show uuid
-  Xenvm.pause uuid
+  liftIO $ Xl.pause uuid
 
 unpauseVm :: Uuid -> Rpc ()
 unpauseVm uuid = do
   info $ "unpausing VM " ++ show uuid
-  Xenvm.unpause uuid
+  liftIO $ Xl.unpause uuid
 
 assertPvAddons :: Uuid -> Rpc ()
 assertPvAddons uuid = getVmPvAddons uuid >>= \addons -> when (not addons) failActionRequiresPvAddons
@@ -983,7 +1008,7 @@ sleepVm uuid = do
               if use_agent
                  then RpcAgent.sleep uuid
                  else do assertPvAddons uuid
-                         Xenvm.sleep uuid
+                         liftIO $ Xl.sleep uuid
 
 hibernateVm :: Uuid -> Rpc ()
 hibernateVm uuid = do
@@ -997,15 +1022,15 @@ hibernateVm uuid = do
       when (acpi == 3) $ resumeS3AndWaitS0 uuid
       if use_agent
          then RpcAgent.hibernate uuid
-         else Xenvm.hibernate uuid
+         else Xl.hibernate uuid
       saveConfigProperty uuid vmHibernated True
 
 resumeS3AndWaitS0 :: Uuid -> Rpc ()
 resumeS3AndWaitS0 uuid = do
   acpi <- getVmAcpiState uuid
   when (acpi == 3) $ do
-    Xenvm.resumeFromSleep uuid
-    done <- Xenvm.waitForAcpiState uuid 0 (Just 30)
+    liftIO $ Xl.resumeFromSleep uuid
+    done <- Xl.waitForAcpiState uuid 0 (Just 30)
     when (not done) $ warn $ "timeout waiting for S0 for " ++ show uuid
 
 
@@ -1359,8 +1384,8 @@ mountVmDisk uuid diskID readonly path =
                  xsWrite (xspath ++ "/path") path
                  return ()
           where
-            removedev dev = do
-              tapDestroy dev
+            removedev path = do
+              tapDestroy path
               xsRm xspath
             xspath = "/xenmgr/mount/" ++ show uuid ++ "/" ++ show diskID
 
@@ -1381,7 +1406,7 @@ unmountVmDisk uuid diskID =
                Nothing -> error $ "device not mounted " ++ show dev
                Just mountpath -> do
                  readProcessOrDie "umount" [mountpath] ""
-                 tapDestroy dev
+                 tapDestroy vhdpath 
                  xsRm xspath
                  return ()
           where
@@ -1540,8 +1565,9 @@ changeVmNicNetwork uuid nicid network = do
           -- notify xenvm TODO: maybe won't be necessary sometime?
           -- notify network daemon
           -- resynchronise vif state
-          Xenvm.connectVif uuid nicid False
-          Xenvm.changeNicNetwork uuid nicid network
+          info $ "====In ChangeVmNicNetwork====="
+          Xl.connectVif uuid nicid False
+          Xl.changeNicNetwork uuid nicid network
           whenDomainID_ uuid $ \domid -> joinNetwork network domid nicid
 -- Property accessors
 ---------------------
@@ -1591,7 +1617,7 @@ setVmCd uuid str =
                      | otherwise          = do isos <- appIsoPath
                                                let path = isos ++ "/" ++ name
                                                -- hot swap cd
-                                               whenVmRunning uuid (Xenvm.changeCd uuid path)
+                                               whenVmRunning uuid (Xl.changeCd uuid path)
                                                return $ disk { diskPath = path }
     name | str == ""   = "null.iso"
          | otherwise   = str
@@ -1766,7 +1792,7 @@ setVmDownloadProgress uuid v = do
   dbWrite ("/vm/"++show uuid++"/download-progress") (v::Int)
   notifyVmTransferChanged uuid  
 setVmReady uuid v = saveConfigProperty uuid vmReady (v::Bool)
-setVmVkbd uuid v = saveConfigProperty uuid vmVkbd (v::Bool)
+setVmVkb uuid v = saveConfigProperty uuid vmVkb (v::Bool)
 setVmVfb uuid v = saveConfigProperty uuid vmVfb (v::Bool)
 setVmV4V uuid v = saveConfigProperty uuid vmV4v (v::Bool)
 setVmRestrictDisplayDepth uuid v = saveConfigProperty uuid vmRestrictDisplayDepth (v::Bool)
@@ -1774,7 +1800,7 @@ setVmRestrictDisplayRes uuid v = saveConfigProperty uuid vmRestrictDisplayRes (v
 setVmPreserveOnReboot uuid v = saveConfigProperty uuid vmPreserveOnReboot (v::Bool)
 setVmBootSentinel uuid v = saveOrRmConfigProperty uuid vmBootSentinel (v::Maybe String)
 setVmHpet uuid v = saveConfigProperty uuid vmHpet (v::Bool)
-setVmTimerMode uuid v = saveConfigProperty uuid vmTimerMode (v::Int)
+setVmTimerMode uuid v = saveConfigProperty uuid vmTimerMode (v::String)
 setVmNestedHvm uuid v = saveConfigProperty uuid vmNestedHvm (v::Bool)
 setVmSerial uuid v = saveConfigProperty uuid vmSerial (v::String)
 
