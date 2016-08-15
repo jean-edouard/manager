@@ -1022,7 +1022,8 @@ hibernateVm uuid = do
       when (acpi == 3) $ resumeS3AndWaitS0 uuid
       if use_agent
          then RpcAgent.hibernate uuid
-         else Xl.hibernate uuid
+         --else Xl.hibernate uuid
+         else RpcAgent.hibernate uuid
       saveConfigProperty uuid vmHibernated True
 
 resumeS3AndWaitS0 :: Uuid -> Rpc ()
@@ -1567,7 +1568,7 @@ changeVmNicNetwork uuid nicid network = do
           -- resynchronise vif state
           info $ "====In ChangeVmNicNetwork====="
           Xl.connectVif uuid nicid False
-          Xl.changeNicNetwork uuid nicid network
+          --Xl.changeNicNetwork uuid nicid network
           whenDomainID_ uuid $ \domid -> joinNetwork network domid nicid
 -- Property accessors
 ---------------------

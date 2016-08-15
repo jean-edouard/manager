@@ -34,6 +34,10 @@ module XenMgr.Connect.Xl
     , xlSurfmanDbus 
     , xlInputDbus
     , setNicBackendDom
+
+    --misc
+    , connectVif
+    --, changeNicNetwork (missing)
     ) where
 
 import Control.Exception as E
