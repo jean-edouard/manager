@@ -262,15 +262,22 @@ nicFrontendPath uuid (XbDeviceID nicid) =
        let nicid_str = show nicid
        case () of
          _ | nicid_str `elem` vifs -> return $ Just (domainP ++ "/device/vif/" ++ nicid_str)
-           | nicid_str `elem` vwifs -> return $ Just (domainP ++ "/device/vwif" ++ nicid_str)
+           | nicid_str `elem` vwifs -> return $ Just (domainP ++ "/device/vwif/" ++ nicid_str)
            | otherwise -> return Nothing
+
+findBackendPath :: String -> String -> IO (Maybe String)
+findBackendPath path nicid = do
+    backendPath <- xsRead (path ++ "/device/vif/" ++ show nicid ++ "/backend")
+    case backendPath of
+        Just _  -> return backendPath
+        Nothing -> xsRead (path ++ "/device/vwif/" ++ show nicid ++ "/backend")
 
 --For a given nic, reassign the backend network it should belong to
 changeNicNetwork :: Uuid -> NicID -> Network -> IO ()
 changeNicNetwork uuid nid@(XbDeviceID nicid) network = do
     domid <- getDomainId uuid
     domainP <- domainXsPath uuid
-    backendPath <- xsRead (domainP ++ "/device/vif/" ++ show nicid ++ "/backend")
+    backendPath <- findBackendPath domainP (show nicid)
     case backendPath of
         Just b  -> do xsWrite (b ++ "/bridge") (show network)
                       return ()
