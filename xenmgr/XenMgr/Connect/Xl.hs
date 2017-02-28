@@ -246,12 +246,23 @@ getDomainId uuid = do
       "-1" -> return ("")
       _    -> return (plain_domid) --remove trailing newline
 
+cdromDaemonChangeIsoCall :: MonadRpc e m => Integer -> String -> RpcCall
+cdromDaemonChangeIsoCall domid path =
+  RpcCall service object interface "change_iso" M.fromList [ toVariant domid, toVariant path ]
+  where
+    service   = fromString "com.citrix.xenclient.cdromdaemon"
+    object    = fromString "/"
+    interface = fromString "com.citrix.xenclient.cdromdaemon"
+
+rpcCdromDaemonChangeIso :: MonadRpc e m => Integer -> String -> m [Variant]
+rpcCdromDaemonChangeIso domid path = rpcCallOnce . cdromDaemonChangeIsoCall domid path
+
 --For a given uuid, change the iso in the cd drive slot
 changeCd :: Uuid -> String -> IO ()
 changeCd uuid path = do
     domid <- getDomainId uuid
-    (exitCode, _, _)  <- readProcessWithExitCode "xl" ["cd-insert", domid, "hdc", path] []
-    bailIfError exitCode "error changing cd"
+    rpcCdromDaemonChangeIso (fromIntegral domid) path
+    return ()
 
 --Return the frontend xenstore path of the nic device (or Nothing)
 nicFrontendPath :: Uuid -> NicID -> IO (Maybe String)
