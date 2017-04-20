@@ -55,7 +55,6 @@ module Vm.Config (
                 , vmSeamlessTraffic
                 , vmOemAcpiFeatures, vmUsbEnabled, vmUsbAutoPassthrough, vmUsbControl, vmCpuid
                 , vmStubdom, vmStubdomMemory, vmStubdomCmdline
-                , vmUsbGrabDevices
                 , vmGreedyPcibackBind
                 , vmRunPostCreate, vmRunPreDelete, vmRunOnStateChange, vmRunOnAcpiStateChange
                 , vmRunPreBoot
@@ -367,7 +366,6 @@ vmOemAcpiFeatures = property "oem-acpi-features"
 vmUsbEnabled = property "usb-enabled"
 vmUsbAutoPassthrough = property "usb-auto-passthrough"
 vmUsbControl = property "usb-control"
-vmUsbGrabDevices = property "usb-grab-devices"
 vmStubdom = property "stubdom"
 vmCpuid = property "cpuid"
 vmXciCpuidSignature = property "xci-cpuid-signature"

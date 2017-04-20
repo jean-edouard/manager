@@ -97,7 +97,6 @@ module Vm.Queries
                , getVmRunPostCreate, getVmRunPreDelete, getVmRunOnStateChange, getVmRunOnAcpiStateChange
                , getVmRunPreBoot
                , getVmRunInsteadofStart
-               , getVmUsbGrabDevices
                , getVmNativeExperience, getVmShowSwitcher, getVmWirelessControl
                , getVmXciCpuidSignature
                , getVmS3Mode
@@ -994,7 +993,6 @@ nativeOverride uuid value f
 getVmNativeExperience uuid = readConfigPropertyDef uuid vmNativeExperience False
 getVmShowSwitcher uuid = nativeOverride uuid False $ readConfigPropertyDef uuid vmShowSwitcher True
 getVmWirelessControl uuid = nativeOverride uuid True $ readConfigPropertyDef uuid vmWirelessControl False
-getVmUsbGrabDevices uuid = nativeOverride uuid True $ readConfigPropertyDef uuid vmUsbGrabDevices False
 getVmControlPlatformPowerState uuid = nativeOverride uuid True $ readConfigPropertyDef uuid vmControlPlatformPowerState False
 
 getVmRealm uuid = readConfigPropertyDef uuid vmRealm ""
