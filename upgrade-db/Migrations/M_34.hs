@@ -42,7 +42,7 @@ updateGuests = xformVmJSON xform where
     _ -> tree
     where
       modify = addRule 0 .
-               jsMv "/config/acpi-pt"   "/config/acpi-path" .
+               jsMv "/config/acpi-pt"   "/config/acpi-table" .
                jsRm "/config/smbios-pt" .
                jsRm "/time-offset"
       addRule pos tree = case jsGet ("/v4v-firewall-rules/" ++ (show pos)) tree of
