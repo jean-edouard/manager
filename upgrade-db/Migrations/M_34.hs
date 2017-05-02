@@ -41,7 +41,10 @@ updateGuests = xformVmJSON xform where
     Just s | jsUnboxString s == "svm" -> modify tree
     _ -> tree
     where
-      modify = jsSet "/v4v-firewall-rules/4" (jsBoxString "my-stubdom -> 0:5100") .
+      modify = addRule 0 .
                jsMv "/config/acpi-pt"   "/config/acpi-path" .
                jsRm "/config/smbios-pt" .
                jsRm "/time-offset"
+      addRule pos tree = case jsGet ("/v4v-firewall-rules/" ++ (show pos)) tree of
+               Nothing -> jsSet ("/v4v-firewall-rules/" ++ (show pos)) (jsBoxString "my-stubdom -> 0:5100") tree
+               Just _  -> addRule (pos + 1) tree
