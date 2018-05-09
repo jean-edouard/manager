@@ -295,7 +295,14 @@ options =
     , Option "h" ["help"] (NoArg Help) "print usage information" ]
 
 useServiceVm :: Uuid -> Rpc Bool
-useServiceVm uuid = return True
+useServiceVm uuid = do
+  name <- getVmName uuid
+  case name of
+    "uivm" ->
+        return $ liftIO $ doesDirectoryExist "/storage/uivm"
+    "Network" ->
+        return $ liftIO $ doesDirectoryExist "/storage/ndvm"
+    _ -> return True
 
 initServiceVms :: XM [Uuid]
 initServiceVms = liftRpc $ do
