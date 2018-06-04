@@ -33,6 +33,8 @@ module Vm.Templates
     , getUuidInTemplate
     , getSlotInTemplate
     , applyChildTemplateToVm
+    , ndvmDefaultMode
+    , getNdvmMode
     , mergeTemplates
     ) where
 
@@ -47,6 +49,7 @@ import System.FilePath
 import Tools.JSONTrees
 import Tools.Misc
 import Tools.File
+import Tools.Log
 import Tools.Text
 
 import Vm.Types
@@ -56,6 +59,13 @@ import XenMgr.Rpc
 import Paths_xenmgr
 
 data ConfigTemplate = ConfigTemplate JSValue
+
+ndvmDefaultMode = "pv"
+
+getNdvmMode :: Rpc String
+getNdvmMode =
+    do mode <- dbReadWithDefault ndvmDefaultMode "/xenmgr/ndvm-mode"
+       return $ mode
 
 readJSONFile :: FilePath -> IO JSValue
 readJSONFile path = do
@@ -121,15 +131,19 @@ enumUiTemplates = do
         Nothing -> ""
         Just d  -> d
 
-enumServiceVmTags :: IO [String]
-enumServiceVmTags =
+enumServiceVmTags :: String -> IO [String]
+enumServiceVmTags ndvm_mode =
     do template_dir <- getTemplateDir
        tags <- catMaybes . map get_tag <$> filesInDir template_dir
-       return $ tags
+       info $ "ndvm mode " ++ ndvm_mode ++ " tags: " ++ ( intercalate " " tags )
+       return $ filter ( filt_ndvm ndvm_mode ) tags
     where
       get_tag f = case takeBaseName f of
                     's':'e':'r':'v':'i':'c':'e':'-':tag -> Just tag
                     _ -> Nothing
+      filt_ndvm ndvm_mode f = case f of
+                      'n':'d':'v':'m':'-':mode -> mode == ndvm_mode
+		      _                    -> True
 
 enumChildServiceVmTags :: IO [String]
 enumChildServiceVmTags =
@@ -142,7 +156,7 @@ enumChildServiceVmTags =
                     _ -> Nothing
 
 enumServiceVmTemplates :: IO [ConfigTemplate]
-enumServiceVmTemplates = mapM getServiceVmTemplate =<< enumServiceVmTags
+enumServiceVmTemplates = mapM getServiceVmTemplate =<< enumServiceVmTags ndvmDefaultMode
 
 data StoredKey = StoredKey String String
 --

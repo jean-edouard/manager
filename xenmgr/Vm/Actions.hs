@@ -335,7 +335,8 @@ configureServiceVm tag =
 -- remove service vms which are not in active templates from db
 trashUnusedServiceVms :: Rpc ()
 trashUnusedServiceVms =
-    do tags <- liftIO enumServiceVmTags
+    do ndvm_mode <- getNdvmMode
+       tags <- liftIO $ enumServiceVmTags ndvm_mode
        mapM_ (trash tags) =<< getVms
        where
          trash active uuid =
