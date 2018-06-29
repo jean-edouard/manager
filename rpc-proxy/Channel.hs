@@ -149,7 +149,9 @@ send x@(FdChann fd _) buf = liftM fromIntegral .
         do threadWaitWrite fd
            fromIntegral <$> fdWriteBuf fd (castPtr ptr) (fromIntegral sz)
 
-send (WebSocketCh s _ _) buf = W.sendFrame s (W.Text, BL.fromChunks [buf]) >> return (B.length buf)
+send (WebSocketCh s _ _) buf = do
+     warn $ printf "JED\n%s\n" (show buf)
+     W.sendFrame s (W.Text, BL.fromChunks [buf]) >> return (B.length buf)
 
 send_all :: Channel -> ByteString -> IO ()
 send_all s buf =
