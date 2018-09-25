@@ -674,7 +674,7 @@ nicSpecs cfg =
 
 nicSpec :: VmConfig -> Bool -> Maybe Mac -> NicDef -> DomainID -> String
 nicSpec cfg amt eth0Mac nic networkDomID =
-    let entries = bridge ++ backend ++ wireless ++ vmMac ++ nicType ++ modelType
+    let entries = bridge ++ backend ++ vmMac ++ nicType ++ modelType
     in
       "'" ++ (concat $ intersperse "," entries) ++ "'"
     where
@@ -688,12 +688,6 @@ nicSpec cfg amt eth0Mac nic networkDomID =
       bridgename= niBridgeName `fmap` netinfo
       -- force backend domid for NIC if specified
       backend   = ["backend=" ++ show networkDomID]
-
-      -- HACK: don't put device as wireless for linuxes, as we have no pv driver for that
-      wireless  | nicdefWirelessDriver nic
-                , vmcfgOs cfg /= Linux   = ["wireless=1"]
-                | otherwise              = [ ]
-
       -- use mac specified in configuration as first priority
       vmMac     | Just mac <- nicdefMac nic = ["mac=" ++ mac]
       -- otherwise,
@@ -703,8 +697,8 @@ nicSpec cfg amt eth0Mac nic networkDomID =
       -- Otherwise we do not touch the VM mac and let xenvm choose
                 | otherwise                         = [ ]
 
-      nicType   | stubdomNic cfg == True  = ["type=ioemu"]
-                | otherwise               = ["type=vif"]
+      nicType   | stubdomNic cfg == True  = if (nicdefWirelessDriver nic && vmcfgOs cfg /= Linux) then ["type=vwif_ioemu"] else ["type=vif_ioemu"]
+                | otherwise               = if (nicdefWirelessDriver nic && vmcfgOs cfg /= Linux) then ["type=vwif"] else ["type=vif"]
 
       modelType | stubdomNic cfg == False       = []
                 | Just model <- nicdefModel nic = ["model="++model]

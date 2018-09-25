@@ -379,7 +379,7 @@ addNic uuid nic net back_domid = do
     let typ = isJust stubdomid
     let wireless = L.isInfixOf "wifi" net
     (ec,stdout,_)<- readProcessWithExitCode "xl" ["network-attach", domid, printf "bridge=%s" net, printf "backend=%s" (show back_domid),
-            if typ then "type=ioemu" else "type=vif", if wireless then "wireless=1" else "wireless=0", printf "devid=%s" (show nic)] []
+            if typ then (if wireless then "type=vwif_ioemu" else "type=vif_ioemu") else (if wireless then "type=vwif" else "type=vif"), printf "devid=%s" (show nic)] []
     return ()
 
 --Given the uuid of a domain and a nic id, set the target backend domid for that nic
