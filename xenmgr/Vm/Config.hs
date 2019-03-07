@@ -48,7 +48,7 @@ module Vm.Config (
                 , vmMemoryMin
                 , vmVideoram, vmHibernated, vmHidden, vmMeasured, vmShutdownPriority, vmProvidesGraphicsFallback
                 , vmPorticaStatus, vmPassthroughMmio, vmPassthroughIo, vmHiddenInUi
-                , vmFlaskLabel, vmCoresPerSocket, vmAutoS3Wake, vmSeamlessId, vmStartFromSuspendImage
+                , vmFlaskLabel, vmInitFlaskLabel, vmStubdomFlaskLabel, vmCoresPerSocket, vmAutoS3Wake, vmSeamlessId, vmStartFromSuspendImage
                 , vmExtraHvms, vmExtraXenvm, vmDisks, vmNics, vmPcis, vmDisk, vmNic, vmPci, vmQemuDmPath, vmQemuDmTimeout
                 , vmTrackDependencies, vmSeamlessMouseLeft, vmSeamlessMouseRight
                 , vmOs, vmControlPlatformPowerState
@@ -449,6 +449,8 @@ vmPassthroughMmio = property "config.passthrough-mmio"
 vmPassthroughIo = property "config.passthrough-io"
 vmStartup = property "config.startup"
 vmFlaskLabel = property "config.flask-label"
+vmInitFlaskLabel = property "config.init-flask-label"
+vmStubdomFlaskLabel = property "config.stubdom-flask-label"
 vmCoresPerSocket = property "config.cores-per-socket"
 vmQemuDmPath = property "config.qemu-dm-path"
 vmQemuDmTimeout = property "config.qemu-dm-timeout"
@@ -857,6 +859,8 @@ miscSpecs cfg = do
           , ("vkb"             , vmVkbd)
           , ("vfb"             , vmVfb)
           , ("seclabel"        , vmFlaskLabel)
+          , ("init_seclabel"   , vmInitFlaskLabel)
+          , ("device_model_stubdomain_seclabel", vmStubdomFlaskLabel)
           , ("serial"          , vmSerial)
           , ("stubdom_cmdline" , vmStubdomCmdline)
           , ("stubdom_memory"  , vmStubdomMemory)   --OXT-1220: iomem and ioports should be reworked to support specifying multiple
@@ -885,6 +889,8 @@ miscSpecs cfg = do
                                                            "" -> []
                                                            _  -> name ++ "=" ++ (wrapQuotes v)
                                              "seclabel" -> name ++ "=" ++ (wrapQuotes v)
+                                             "init_seclabel" -> name ++ "=" ++ (wrapQuotes v)
+                                             "device_model_stubdomain_seclabel" -> name ++ "=" ++ (wrapQuotes v)
                                              "boot"     -> name ++ "=" ++ (wrapQuotes v)
                                              "bios"     -> name ++ "=" ++ (wrapQuotes v)
                                              "stubdom_cmdline" -> name ++ "=" ++ (wrapQuotes v)
